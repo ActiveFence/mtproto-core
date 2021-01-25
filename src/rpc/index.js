@@ -1,9 +1,9 @@
-const bigInt = require('big-integer');
-const debounce = require('lodash.debounce');
-const { Transport } = require('../transport');
-const builderMap = require('../tl/builder');
-const Serializer = require('../tl/serializer');
-const Deserializer = require('../tl/deserializer');
+const bigInt = require("big-integer");
+const debounce = require("lodash.debounce");
+const { Transport } = require("../transport");
+const builderMap = require("../tl/builder");
+const Serializer = require("../tl/serializer");
+const Deserializer = require("../tl/deserializer");
 const {
   bytesIsEqual,
   getRandomBytes,
@@ -15,13 +15,13 @@ const {
   getRandomInt,
   bytesToBytesRaw,
   xorBytes,
-} = require('../utils/common');
-const { pqPrimeFactorization } = require('../utils/pq');
-const { AES, RSA, SHA1, SHA256 } = require('../utils/crypto');
-const { getRsaKeyByFingerprints } = require('../utils/rsa');
-const { createLogger } = require('../utils/common/logger');
+} = require("../utils/common");
+const { pqPrimeFactorization } = require("../utils/pq");
+const { AES, RSA, SHA1, SHA256 } = require("../utils/crypto");
+const { getRsaKeyByFingerprints } = require("../utils/rsa");
+const { createLogger } = require("../utils/common/logger");
 
-const logger = createLogger('RPC');
+const logger = createLogger("RPC");
 
 class RPC {
   constructor({
@@ -49,9 +49,9 @@ class RPC {
 
     this.transport = new Transport(this.dc);
 
-    this.transport.on('open', this.handleTransportOpen.bind(this));
-    this.transport.on('error', this.handleTransportError.bind(this));
-    this.transport.on('message', this.handleTransportMessage.bind(this));
+    this.transport.on("open", this.handleTransportOpen.bind(this));
+    this.transport.on("error", this.handleTransportError.bind(this));
+    this.transport.on("message", this.handleTransportMessage.bind(this));
 
     this.sendAcks = debounce(() => {
       if (!this.pendingAcks.length || !this.isReady) {
@@ -72,6 +72,10 @@ class RPC {
     }, 500);
   }
 
+  async connect() {
+    await this.transport.connect();
+  }
+
   get isReady() {
     return this.isAuth && this.transport.isAvailable;
   }
@@ -79,26 +83,26 @@ class RPC {
   async handleTransportError(payload) {
     const { type } = payload;
 
-    console.warn('Transport error:', payload);
+    console.warn("Transport error:", payload);
 
     // https://core.telegram.org/mtproto/mtproto-transports#transport-errors
-    if (type === 'transport') {
+    if (type === "transport") {
       // Auth key not found
       if (payload.code === 404) {
-        await this.storage.pSet('authKey', null);
-        await this.storage.pSet('serverSalt', null);
+        await this.storage.pSet("authKey", null);
+        await this.storage.pSet("serverSalt", null);
       }
 
       // transport flood
       if (payload.code === 429) {
-        console.warn('Transport flood');
+        console.warn("Transport flood");
       }
     }
   }
 
   async handleTransportOpen() {
-    const authKey = await this.storage.pGet('authKey');
-    const serverSalt = await this.storage.pGet('serverSalt');
+    const authKey = await this.storage.pGet("authKey");
+    const serverSalt = await this.storage.pGet("serverSalt");
 
     if (authKey && serverSalt) {
       this.handleMessage = this.handleEncryptedMessage;
@@ -106,11 +110,11 @@ class RPC {
       this.sendWaitMessages();
 
       // This request is necessary to ensure that you start interacting with the server. If we have not made any request, the server will not send us updates.
-      this.call('help.getConfig')
-        .then(result => {
+      this.call("help.getConfig")
+        .then((result) => {
           // TODO: Handle config
         })
-        .catch(error => {
+        .catch((error) => {
           console.log(`Error when calling the method help.getConfig:`, error);
         });
     } else {
@@ -139,7 +143,7 @@ class RPC {
     } = responsePQ;
 
     if (!bytesIsEqual(this.nonce, nonce)) {
-      throw new Error('The nonce are not equal');
+      throw new Error("The nonce are not equal");
     }
 
     const publicKey = await getRsaKeyByFingerprints(
@@ -191,11 +195,11 @@ class RPC {
     const { nonce, server_nonce, encrypted_answer } = serverDH;
 
     if (!bytesIsEqual(this.nonce, nonce)) {
-      throw new Error('The nonce are not equal');
+      throw new Error("The nonce are not equal");
     }
 
     if (!bytesIsEqual(this.serverNonce, server_nonce)) {
-      throw new Error('The server_nonce are not equal');
+      throw new Error("The server_nonce are not equal");
     }
 
     this.tmpAesKey = concatBytes(
@@ -221,11 +225,11 @@ class RPC {
         await SHA1(decryptedData.slice(20, 20 + innerDeserializer.offset))
       )
     ) {
-      throw new Error('Invalid hash in DH params decrypted data');
+      throw new Error("Invalid hash in DH params decrypted data");
     }
 
     await this.storage.set(
-      'timeOffset',
+      "timeOffset",
       Math.floor(Date.now() / 1000) - serverDHInnerData.server_time
     );
 
@@ -240,35 +244,35 @@ class RPC {
 
   verifyDhParams(g, dhPrime, gA) {
     if (g.toJSNumber() !== 3) {
-      throw new Error('Server_DH_inner_data.g must be equal to 3');
+      throw new Error("Server_DH_inner_data.g must be equal to 3");
     }
 
     if (
       dhPrime.toString(16) !==
-      'c71caeb9c6b1c9048e6c522f70f13f73980d40238e3e21c14934d037563d930f48198a0aa7c14058229493d22530f4dbfa336f6e0ac925139543aed44cce7c3720fd51f69458705ac68cd4fe6b6b13abdc9746512969328454f18faf8c595f642477fe96bb2a941d5bcd1d4ac8cc49880708fa9b378e3c4f3a9060bee67cf9a4a4a695811051907e162753b56b0f6b410dba74d8a84b2a14b3144e0ef1284754fd17ed950d5965b4b9dd46582db1178d169c6bc465b0d6ff9ca3928fef5b9ae4e418fc15e83ebea0f87fa9ff5eed70050ded2849f47bf959d956850ce929851f0d8115f635b105ee2e4e15d04b2454bf6f4fadf034b10403119cd8e3b92fcc5b'
+      "c71caeb9c6b1c9048e6c522f70f13f73980d40238e3e21c14934d037563d930f48198a0aa7c14058229493d22530f4dbfa336f6e0ac925139543aed44cce7c3720fd51f69458705ac68cd4fe6b6b13abdc9746512969328454f18faf8c595f642477fe96bb2a941d5bcd1d4ac8cc49880708fa9b378e3c4f3a9060bee67cf9a4a4a695811051907e162753b56b0f6b410dba74d8a84b2a14b3144e0ef1284754fd17ed950d5965b4b9dd46582db1178d169c6bc465b0d6ff9ca3928fef5b9ae4e418fc15e83ebea0f87fa9ff5eed70050ded2849f47bf959d956850ce929851f0d8115f635b105ee2e4e15d04b2454bf6f4fadf034b10403119cd8e3b92fcc5b"
     ) {
-      throw new Error('Server_DH_inner_data.dh_prime incorrect');
+      throw new Error("Server_DH_inner_data.dh_prime incorrect");
     }
 
     if (gA.lesserOrEquals(bigInt.one)) {
-      throw new Error('Server_DH_inner_data.g_a incorrect: g_a <= 1');
+      throw new Error("Server_DH_inner_data.g_a incorrect: g_a <= 1");
     }
 
     if (gA.greaterOrEquals(dhPrime.minus(bigInt.one))) {
       throw new Error(
-        'Server_DH_inner_data.g_a incorrect: g_a >= dh_prime - 1'
+        "Server_DH_inner_data.g_a incorrect: g_a >= dh_prime - 1"
       );
     }
 
     const twoPow = bigInt(2).pow(2048 - 64);
 
     if (gA.lesser(twoPow)) {
-      throw new Error('Server_DH_inner_data.g_a incorrect: g_a < 2^{2048-64}');
+      throw new Error("Server_DH_inner_data.g_a incorrect: g_a < 2^{2048-64}");
     }
 
     if (gA.greaterOrEquals(dhPrime.minus(twoPow))) {
       throw new Error(
-        'Server_DH_inner_data.g_a incorrect: g_a >= dh_prime - 2^{2048-64}'
+        "Server_DH_inner_data.g_a incorrect: g_a >= dh_prime - 2^{2048-64}"
       );
     }
   }
@@ -281,8 +285,8 @@ class RPC {
       this.serverNonce.slice(0, 8)
     );
 
-    await this.storage.pSet('authKey', bytesToBytesRaw(authKey));
-    await this.storage.pSet('serverSalt', bytesToBytesRaw(serverSalt));
+    await this.storage.pSet("authKey", bytesToBytesRaw(authKey));
+    await this.storage.pSet("serverSalt", bytesToBytesRaw(serverSalt));
 
     this.authKeyAuxHash = bytesToBytesRaw((await SHA1(authKey)).slice(0, 8));
 
@@ -322,14 +326,14 @@ class RPC {
     const { nonce, server_nonce } = serverDHAnswer;
 
     if (!bytesIsEqual(this.nonce, nonce)) {
-      throw new Error('The nonce are not equal');
+      throw new Error("The nonce are not equal");
     }
 
     if (!bytesIsEqual(this.serverNonce, server_nonce)) {
-      throw new Error('The server_nonce are not equal');
+      throw new Error("The server_nonce are not equal");
     }
 
-    if (serverDHAnswer._ === 'mt_dh_gen_ok') {
+    if (serverDHAnswer._ === "mt_dh_gen_ok") {
       const hash = (
         await SHA1(concatBytes(this.newNonce, [1], this.authKeyAuxHash))
       ).slice(4, 20);
@@ -345,7 +349,7 @@ class RPC {
       return;
     }
 
-    if (serverDHAnswer._ === 'mt_dh_gen_retry') {
+    if (serverDHAnswer._ === "mt_dh_gen_retry") {
       const hash = (
         await SHA1(concatBytes(this.newNonce, [2], this.authKeyAuxHash))
       ).slice(4, 20);
@@ -359,7 +363,7 @@ class RPC {
       return;
     }
 
-    if (serverDHAnswer._ === 'mt_dh_gen_fail') {
+    if (serverDHAnswer._ === "mt_dh_gen_fail") {
       const hash = (
         await SHA1(concatBytes(this.newNonce, [3], this.authKeyAuxHash))
       ).slice(4, 20);
@@ -384,7 +388,7 @@ class RPC {
       this.call(method, params).then(resolve).catch(reject);
     }
 
-    this.messagesWaitAuth.forEach(message => {
+    this.messagesWaitAuth.forEach((message) => {
       const { method, params, resolve, reject } = message;
       this.call(method, params).then(resolve).catch(reject);
     });
@@ -393,7 +397,7 @@ class RPC {
   }
 
   async handleEncryptedMessage(buffer) {
-    const authKey = await this.storage.pGetBytes('authKey');
+    const authKey = await this.storage.pGetBytes("authKey");
 
     const deserializer = new Deserializer(buffer);
     const authKeyId = deserializer.long();
@@ -441,14 +445,14 @@ class RPC {
     }
 
     logger.bytes({
-      name: 'handleEncryptedMessage plainDeserializer.byteView',
+      name: "handleEncryptedMessage plainDeserializer.byteView",
       bytes: plainDeserializer.byteView,
     });
 
     const result = plainDeserializer.predicate();
 
     logger.log({
-      name: 'handleEncryptedMessage result',
+      name: "handleEncryptedMessage result",
       result,
     });
 
@@ -470,8 +474,8 @@ class RPC {
       return;
     }
 
-    if (message._ === 'mt_msg_container') {
-      message.messages.forEach(message => {
+    if (message._ === "mt_msg_container") {
+      message.messages.forEach((message) => {
         this.handleDecryptedMessage(message.body, {
           messageId: message.msg_id,
         });
@@ -480,10 +484,10 @@ class RPC {
       return;
     }
 
-    if (['mt_bad_server_salt', 'mt_bad_msg_notification'].includes(message._)) {
+    if (["mt_bad_server_salt", "mt_bad_msg_notification"].includes(message._)) {
       if (message.error_code === 48) {
         await this.storage.pSet(
-          'serverSalt',
+          "serverSalt",
           longToBytesRaw(message.new_server_salt)
         );
       }
@@ -492,7 +496,7 @@ class RPC {
         const serverTime = bigInt(messageId).shiftRight(32).toJSNumber();
         const timeOffset = Math.floor(Date.now() / 1000) - serverTime;
 
-        await this.storage.set('timeOffset', timeOffset);
+        await this.storage.set("timeOffset", timeOffset);
         this.lastMessageId = [0, 0];
       }
 
@@ -510,18 +514,18 @@ class RPC {
       return;
     }
 
-    if (message._ === 'mt_new_session_created') {
+    if (message._ === "mt_new_session_created") {
       this.ackMessage(messageId);
       await this.storage.pSet(
-        'serverSalt',
+        "serverSalt",
         longToBytesRaw(message.server_salt)
       );
 
       return;
     }
 
-    if (message._ === 'mt_msgs_ack') {
-      message.msg_ids.forEach(msgId => {
+    if (message._ === "mt_msgs_ack") {
+      message.msg_ids.forEach((msgId) => {
         const waitMessage = this.messagesWaitResponse.get(msgId);
 
         const nextWaitMessage = {
@@ -535,12 +539,12 @@ class RPC {
       return;
     }
 
-    if (message._ === 'mt_rpc_result') {
+    if (message._ === "mt_rpc_result") {
       this.ackMessage(messageId);
 
       const waitMessage = this.messagesWaitResponse.get(message.req_msg_id);
 
-      if (message.result._ === 'mt_rpc_error') {
+      if (message.result._ === "mt_rpc_error") {
         waitMessage.reject(message.result);
       } else {
         waitMessage.resolve(message.result);
@@ -570,18 +574,18 @@ class RPC {
 
     const initConnectionParams = {
       api_id: this.api_id,
-      device_model: '@mtproto/core',
-      system_version: '5.3.0',
-      app_version: '1.0.0',
-      system_lang_code: 'en',
-      lang_code: 'en',
+      device_model: "@mtproto/core",
+      system_version: "5.3.0",
+      app_version: "1.0.0",
+      system_lang_code: "en",
+      lang_code: "en",
       ...this.getInitConnectionParams(),
     };
 
     const serializer = new Serializer(builderMap.invokeWithLayer, {
       layer: 121,
       query: {
-        _: 'initConnection',
+        _: "initConnection",
         ...initConnectionParams,
         query: {
           _: method,
@@ -593,14 +597,14 @@ class RPC {
     });
 
     logger.log({
-      name: 'call params',
+      name: "call params",
       params,
     });
 
     const bytes = serializer.getBytes();
 
     logger.bytes({
-      name: 'call bytes',
+      name: "call bytes",
       bytes,
     });
 
@@ -634,8 +638,8 @@ class RPC {
   async sendEncryptedMessage(data, options = {}) {
     const { isContentRelated = true } = options;
 
-    const authKey = await this.storage.pGetBytes('authKey');
-    const serverSalt = await this.storage.pGetBytes('serverSalt');
+    const authKey = await this.storage.pGetBytes("authKey");
+    const serverSalt = await this.storage.pGetBytes("serverSalt");
     const messageId = await this.getMessageId();
     const seqNo = this.getSeqNo(isContentRelated);
     const minPadding = 12;
@@ -703,7 +707,7 @@ class RPC {
   }
 
   async getMessageId() {
-    const timeOffset = await this.storage.get('timeOffset');
+    const timeOffset = await this.storage.get("timeOffset");
 
     const timeTicks = Date.now();
     const timeSec = Math.floor(timeTicks / 1000) + timeOffset;

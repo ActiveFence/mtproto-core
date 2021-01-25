@@ -1,31 +1,42 @@
-const net = require('net');
-const { Obfuscated } = require('../obfuscated');
+const SocksClient = require("socks").SocksClient;
+const { Obfuscated } = require("../obfuscated");
 
 class TCP extends Obfuscated {
   constructor(dc) {
     super();
 
     this.dc = dc;
-
-    this.connect();
   }
 
   get isAvailable() {
-    return this.socket.writable;
+    return this.socket && this.socket.writable;
   }
 
-  connect() {
+  async connect() {
     this.stream = new Uint8Array();
 
-    this.socket = net.connect(
-      this.dc.port,
-      this.dc.ip,
-      this.handleConnect.bind(this)
-    );
+    const options = {
+      proxy: {
+        host: "45.13.75.173",
+        port: 1180,
+        type: 5,
+        userId: "activefence",
+        password: "fq6q9K93HS",
+      },
+      command: "connect",
+      destination: {
+        host: this.dc.ip,
+        port: this.dc.port,
+      },
+    };
 
-    this.socket.on('data', this.handleData.bind(this));
-    this.socket.on('error', this.handleError.bind(this));
-    this.socket.on('close', this.handleClose.bind(this));
+    const info = await SocksClient.createConnection(options);
+    console.log(info.socket);
+    this.socket = info.socket;
+    this.socket.on("data", this.handleData.bind(this));
+    this.socket.on("error", this.handleError.bind(this));
+    this.socket.on("close", this.handleClose.bind(this));
+    await this.handleConnect();
   }
 
   async handleData(data) {
@@ -46,12 +57,12 @@ class TCP extends Obfuscated {
         if (payloadLength === 4) {
           const code = dataView.getInt32(4, true) * -1;
 
-          this.emit('error', {
-            type: 'transport',
+          this.emit("error", {
+            type: "transport",
             code,
           });
         } else {
-          this.emit('message', payload.buffer);
+          this.emit("message", payload.buffer);
         }
 
         this.stream = this.stream.slice(payloadLength + 4);
@@ -62,8 +73,8 @@ class TCP extends Obfuscated {
   }
 
   async handleError(error) {
-    this.emit('error', {
-      type: 'socket',
+    this.emit("error", {
+      type: "socket",
     });
   }
 
@@ -80,7 +91,7 @@ class TCP extends Obfuscated {
 
     this.socket.write(initialMessage);
 
-    this.emit('open');
+    this.emit("open");
   }
 
   async send(bytes) {
