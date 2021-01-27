@@ -17,7 +17,7 @@ class TCP extends Obfuscated {
 
     const options = {
       proxy: {
-        host: "45.13.75.173",
+        host: "45.13.75.190",
         port: 1180,
         type: 5,
         userId: "activefence",
@@ -31,7 +31,6 @@ class TCP extends Obfuscated {
     };
 
     const info = await SocksClient.createConnection(options);
-    console.log(info.socket);
     this.socket = info.socket;
     this.socket.on("data", this.handleData.bind(this));
     this.socket.on("error", this.handleError.bind(this));
